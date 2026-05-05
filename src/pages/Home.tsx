@@ -20,7 +20,7 @@ interface Result {
 }
 
 async function fetchLiveResults(query: string): Promise<Result[]> {
-  const API_KEY = '30884403332f1465243be4f51505370605634560c33a408d'; 
+  const API_KEY = '9193c3a86de5db51c2e55ee6a0b82a5b69daa08d'; 
   
   const res = await fetch('https://google.serper.dev/search', {
     method: 'POST',
