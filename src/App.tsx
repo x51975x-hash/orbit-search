@@ -8,7 +8,6 @@ import SavedCardsPage from './pages/SavedCardsPage';
 import DecksPage from './pages/DecksPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
-import NovaSearch from './pages/NovaSearch';
 
 export default function App() {
   return (
@@ -23,7 +22,6 @@ export default function App() {
             <Route path="/decks" element={<DecksPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
-            <Route path="/nova" element={<NovaSearch />} />
           </Routes>
         </BrowserRouter>
       </AppProvider>

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Moon, Sun, BookmarkCheck,
+  Moon, Sun, BookmarkCheck, LayoutList, RotateCcw,
   Search, ChevronLeft, BookmarkX,
 } from 'lucide-react';
 import Logo from '../components/Logo';

@@ -1,258 +1,366 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Search, Moon, Sun, Grid, Bookmark, Folder, 
-  Share2, RotateCcw, ExternalLink, Trash2, 
-  Plus, SlidersHorizontal, FolderPlus, Undo2,
-  Mail, Twitter, Github
-} from 'lucide-react';
+import { Search, Moon, Sun, LayoutList, Layers, BookmarkPlus, Share2, X, RotateCcw, Check, ChevronDown } from 'lucide-react';
+import UserMenu from '../components/UserMenu';
 import Logo from '../components/Logo';
+import { UniversalCard, StackCard, GridCard, CARD_SIZE_STYLE } from '../components/UniversalCard';
+import Footer from '../components/Footer';
+import AuthModal from '../components/AuthModal';
+import { searchResults, Result } from '../data/results';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
+import { playWhoosh } from '../utils/sound';
+import { useLibrary } from '../hooks/useLibrary';
 
-export default function Results() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const { darkMode, toggleDarkMode } = useApp();
-  // Get live results and the query string from Home page
-  const { results: initialResults, query } = location.state || { results: [], query: '' };
-  
-  const [deck, setDeck] = useState(initialResults);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [dismissedCount, setDismissedCount] = useState(0);
-  const [exitDirection, setExitDirection] = useState(0);
+const BATCH_SIZE = 10;
 
-  // --- SWIPE & BUTTON LOGIC ---
-  const handleDismiss = () => {
-    if (currentIndex < deck.length - 1) {
-      setCurrentIndex(prev => prev + 1);
-      setDismissedCount(prev => prev + 1);
-    } else {
-      alert("You've reached the end of the deck!");
-    }
-  };
 
-  const handleSkip = () => {
-    setExitDirection(-500);
-    handleDismiss();
-  };
-
-  const handleSave = () => {
-    setExitDirection(500);
-    alert("Card saved to bookmarks!");
-    handleDismiss();
-  };
-
-  const handleUndo = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(prev => prev - 1);
-      setDismissedCount(prev => prev - 1);
-    }
-  };
-
-  const handleShare = async () => {
-    if (!currentCard) return;
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: currentCard.title,
-          text: currentCard.snippet,
-          url: currentCard.link,
-        });
-      } catch (err) {
-        console.log('Share canceled');
-      }
-    } else {
-      navigator.clipboard.writeText(currentCard.link);
-      alert("Link copied to clipboard!");
-    }
-  };
-
-  const handleComingSoon = (feature: string) => {
-    alert(`${feature} coming soon!`);
-  };
-  // --------------------------------
-
-  const currentCard = deck[currentIndex];
-
-  if (!currentCard) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f0f4f8] dark:bg-slate-900">
-        <button onClick={() => navigate('/')} className="text-blue-500 underline font-medium">No results. Back to home.</button>
-      </div>
-    );
-  }
-
+// ─── Toast ────────────────────────────────────────────────────────────────────
+function Toast({ msg }: { msg: string }) {
   return (
-    <div className={`min-h-screen overflow-hidden flex flex-col transition-colors duration-500 ${darkMode ? 'bg-slate-900 text-white' : 'bg-[#f0f4f8] text-gray-800'}`}>
-      
-      {/* 1. TOP NAV BAR */}
-      <header className="px-6 py-4 flex items-center justify-between z-10">
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
-          <Logo size="sm" />
-        </div>
-        
-        {/* Shows the live search query */}
-        <div className="flex-1 text-center cursor-pointer" onClick={() => navigate('/')}>
-          <span className="text-sm text-gray-400 hover:text-blue-500 transition-colors font-medium">"{query}"</span>
-        </div>
-
-        <div className="flex items-center gap-5 text-gray-400">
-          <Grid size={18} className="cursor-pointer hover:text-blue-500" onClick={() => handleComingSoon('Grid View')} />
-          <div className="relative">
-             <Folder size={18} className="cursor-pointer hover:text-blue-500" onClick={() => handleComingSoon('Folders')} />
-             <span className="absolute -top-2 -right-2 bg-green-500 text-[10px] text-white px-1.5 py-0.5 rounded-full border-2 border-[#f0f4f8] dark:border-slate-900">2</span>
-          </div>
-          <Search size={18} className="cursor-pointer hover:text-blue-500" onClick={() => navigate('/')} />
-          <button onClick={toggleDarkMode} className="hover:text-blue-500 transition-colors">
-            {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-          
-          <div className="flex items-center gap-2 bg-white dark:bg-white/10 px-3 py-1.5 rounded-full shadow-sm cursor-pointer hover:bg-gray-50 border border-gray-100 dark:border-white/5">
-            <div className="w-5 h-5 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-[10px] font-bold">U</div>
-            <span className="text-xs font-medium text-gray-600 dark:text-gray-300 hidden sm:block">Google User</span>
-          </div>
-        </div>
-      </header>
-
-      {/* 2. SUB-MENU ACTIONS */}
-      <div className="flex justify-center gap-6 py-2 text-[11px] font-bold uppercase tracking-widest text-red-400/80 z-10">
-        <button onClick={handleSkip} className="flex items-center gap-1 hover:text-red-500 transition-colors"><X size={12} /> Skip</button>
-        <button onClick={handleShare} className="flex items-center gap-1 text-blue-400 hover:text-blue-500 transition-colors"><Share2 size={12} /> Share</button>
-        <button onClick={handleSave} className="flex items-center gap-1 text-green-500 hover:text-green-600 transition-colors"><Bookmark size={12} /> Save</button>
-        <button onClick={() => handleComingSoon('Grid View')} className="flex items-center gap-1 text-orange-400 hover:text-orange-500 transition-colors text-opacity-50">Grid</button>
-      </div>
-
-      {/* 3. MAIN AREA */}
-      <main className="flex-1 relative flex items-center justify-center p-4">
-        
-        {/* FLOATING ACTION: UNDO */}
-        <AnimatePresence>
-          {dismissedCount > 0 && (
-            <motion.button 
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              onClick={handleUndo}
-              className="absolute bottom-10 left-10 flex items-center gap-2 bg-gray-200/60 dark:bg-white/10 backdrop-blur-md px-4 py-2 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-300/60 transition-colors z-20"
-            >
-              <Undo2 size={16} />
-              <span className="text-sm font-semibold">Undo</span>
-              <div className="w-5 h-5 bg-yellow-400 text-black rounded-full flex items-center justify-center text-[10px] font-bold">
-                {dismissedCount}
-              </div>
-            </motion.button>
-          )}
-        </AnimatePresence>
-
-        {/* FLOATING ACTION: SHARE */}
-        <div className="absolute bottom-10 left-1/4 flex flex-col items-center text-gray-400 hover:text-blue-500 cursor-pointer z-0 transition-colors hidden sm:flex" onClick={handleShare}>
-          <Share2 size={24} strokeWidth={1.5} />
-          <span className="text-[10px] font-bold mt-2">Share</span>
-        </div>
-
-        {/* FLOATING ACTION: BIN */}
-        <div className="absolute bottom-10 right-1/4 flex flex-col items-center text-gray-400 hover:text-red-500 cursor-pointer z-0 transition-colors hidden sm:flex" onClick={() => handleComingSoon('Move to Bin')}>
-          <Trash2 size={24} strokeWidth={1.5} />
-          <span className="text-[10px] font-bold mt-2">Bin</span>
-        </div>
-
-        {/* SWIPING CARD */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentIndex}
-            drag 
-            dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }} 
-            dragElastic={0.7} 
-            onDragEnd={(_, info) => {
-              const dx = info.offset.x;
-              const dy = info.offset.y;
-              const absX = Math.abs(dx);
-              const absY = Math.abs(dy);
-
-              if (Math.max(absX, absY) > 80) {
-                if (absX > absY) {
-                  if (dx > 0) handleSave(); 
-                  else handleSkip();        
-                } else {
-                  if (dy < 0) handleShare();                   
-                  else handleComingSoon('Grid View'); 
-                }
-              }
-            }}
-            initial={{ scale: 0.95, opacity: 0, y: 10 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ x: exitDirection, opacity: 0, rotate: exitDirection > 0 ? 8 : -8 }} 
-            className="relative w-full max-w-[400px] bg-white dark:bg-zinc-900 rounded-[32px] shadow-2xl border border-gray-100 dark:border-white/5 flex flex-col overflow-hidden cursor-grab active:cursor-grabbing z-10"
-            style={{ height: '580px' }}
-          >
-            {/* Top Right Card Icons */}
-            <div className="absolute top-6 right-6 flex gap-4 text-gray-300">
-               <FolderPlus size={18} className="hover:text-blue-500 cursor-pointer transition-colors" onClick={() => handleComingSoon('Add to Deck')} />
-               <Bookmark size={18} className="text-blue-500 fill-blue-500 cursor-pointer transition-colors" />
-               <RotateCcw size={18} className="hover:text-blue-500 cursor-pointer transition-colors" onClick={() => handleComingSoon('Refresh Card')} />
-            </div>
-
-            {/* Custom Orbit QR Code */}
-            <div className="flex justify-center mt-12 mb-4 pointer-events-none">
-              <div className="relative">
-                <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(currentCard.link)}`} 
-                  alt="QR Code"
-                  className="w-48 h-48 rounded-2xl p-1"
-                />
-                <div className="absolute inset-0 m-auto w-10 h-10 bg-white rounded-full flex items-center justify-center border-4 border-white shadow-sm">
-                  <div className="w-8 h-8 rounded-full border-[3px] border-blue-500"></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Content Text */}
-            <div className="px-8 flex-1 flex flex-col pointer-events-none">
-              <p className="text-[11px] text-gray-400 mb-2 truncate">{currentCard.source}</p>
-              <h2 className="text-xl font-medium text-[#1a40b3] dark:text-blue-400 leading-snug mb-3 line-clamp-2">
-                {currentCard.title}
-              </h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-4">
-                {currentCard.snippet}
-              </p>
-            </div>
-
-            {/* Bottom Card Actions */}
-            <div className="px-8 pb-10 pt-4 flex items-center justify-between text-gray-300 relative">
-              <div className="flex flex-col items-center cursor-pointer hover:text-blue-500 transition-colors" onClick={() => handleComingSoon('Edit')}>
-                <SlidersHorizontal size={20} strokeWidth={1.5} />
-                <span className="text-[9px] font-bold mt-1 text-gray-400">Edit</span>
-              </div>
-              
-              <div className="flex flex-col items-center cursor-pointer hover:text-blue-500 transition-colors" onClick={() => handleComingSoon('Add to')}>
-                <Plus size={20} strokeWidth={1.5} />
-                <span className="text-[9px] font-bold mt-1 text-gray-400">Add to</span>
-              </div>
-
-              {/* Bottom Social Icons inside Card */}
-              <div className="absolute bottom-3 left-8 flex gap-3 text-gray-400">
-                <Mail size={14} className="hover:text-blue-500 cursor-pointer" />
-                <Twitter size={14} className="hover:text-blue-500 cursor-pointer" />
-                <Github size={14} className="hover:text-blue-500 cursor-pointer" />
-              </div>
-
-              {/* Floating External Link Icon */}
-              <a href={currentCard.link} target="_blank" rel="noreferrer" className="absolute right-8 bottom-3 text-gray-400 hover:text-blue-500 transition-colors z-20">
-                 <ExternalLink size={16} />
-              </a>
-            </div>
-          </motion.div>
-        </AnimatePresence>
-      </main>
-    </div>
+    <motion.div
+      initial={{ opacity: 0, y: 24, scale: 0.94 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 12, scale: 0.94 }}
+      className="fixed bottom-28 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full text-sm font-medium text-white bg-black/80 backdrop-blur-sm shadow-xl pointer-events-none whitespace-nowrap"
+    >
+      {msg}
+    </motion.div>
   );
 }
 
-function X({ size }: { size: number }) {
+// ─── Results Page ─────────────────────────────────────────────────────────────
+export default function Results() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { darkMode, toggleDarkMode, soundEnabled, toggleSound } = useApp();
+  const { user, logout } = useAuth();
+  const library = useLibrary();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  const state    = location.state as { results?: Result[]; query?: string; visual?: boolean } | null;
+  const isVisual = state?.visual ?? false;
+  const allCards = state?.results ?? searchResults(state?.query ?? '', isVisual);
+
+  const [batchStart, setBatchStart] = useState(0);
+  const [deck, setDeck]             = useState<Result[]>(() => allCards.slice(0, BATCH_SIZE));
+  const [history, setHistory]       = useState<Result[]>([]);
+  const [viewMode, setViewMode]     = useState<'deck' | 'list'>('deck');
+  const [toast, setToast]           = useState<{ id: number; msg: string } | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    const id = Date.now();
+    setToast({ id, msg });
+    setTimeout(() => setToast((t) => (t?.id === id ? null : t)), 2000);
+  }, []);
+
+  const handleSwipe = useCallback((dir: 'left' | 'right' | 'up' | 'down', result: Result) => {
+    if (dir === 'down') { setViewMode('list'); return; }
+
+    setHistory((h) => [result, ...h]);
+    setDeck((prev) => prev.slice(1));
+
+    if (soundEnabled) playWhoosh();
+
+    if (dir === 'right') {
+      library.saveCard(result);
+      showToast('Saved to library');
+    } else if (dir === 'left') {
+      showToast('Skipped');
+    } else if (dir === 'up') {
+      if (navigator.share) {
+        navigator.share({ title: result.title, text: result.description, url: result.url }).catch(() => {});
+      }
+      showToast('Shared!');
+    }
+  }, [soundEnabled, library, showToast]);
+
+  const handleUndo = () => {
+    if (history.length === 0) return;
+    const [last, ...rest] = history;
+    setHistory(rest);
+    setDeck((prev) => [last, ...prev]);
+    showToast('Undone');
+  };
+
+  const loadNextBatch = () => {
+    const next = batchStart + BATCH_SIZE;
+    const slice = allCards.slice(next, next + BATCH_SIZE);
+    if (slice.length === 0) { showToast('No more results'); return; }
+    setBatchStart(next);
+    setDeck(slice);
+    setHistory([]);
+    setViewMode('deck');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const restartDeck = () => {
+    setBatchStart(0);
+    setDeck(allCards.slice(0, BATCH_SIZE));
+    setHistory([]);
+    setViewMode('deck');
+  };
+
+  const hasNextBatch = batchStart + BATCH_SIZE < allCards.length;
+  const topThree = deck.slice(0, 3);
+
+  const iconBtn = `p-2 rounded-full transition-colors ${
+    darkMode ? 'text-white/40 hover:text-white/80 hover:bg-white/10' : 'text-slate-400 hover:text-slate-700 hover:bg-black/5'
+  }`;
+
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 6L6 18M6 6l12 12" />
-    </svg>
+    <div className={`min-h-screen flex flex-col transition-colors duration-500 ${
+      darkMode ? 'bg-gradient-to-br from-slate-900 via-zinc-900 to-black' : 'bg-gradient-to-br from-[#f0f4f8] to-[#e6ecef]'
+    }`}>
+      {/* ── Header ── */}
+      <header className={`sticky top-0 z-30 flex items-center justify-between px-5 py-3 border-b transition-colors ${
+        darkMode ? 'bg-zinc-900/80 backdrop-blur-xl border-white/8' : 'bg-white/80 backdrop-blur-xl border-gray-200/80'
+      }`}>
+        <div className="flex items-center gap-3">
+          <Logo size="sm" />
+        </div>
+
+        {state?.query && (
+          <p className={`text-sm hidden sm:block truncate max-w-xs ${darkMode ? 'text-white/40' : 'text-slate-400'}`}>
+            {isVisual ? 'Visual search' : `"${state.query}"`}
+          </p>
+        )}
+
+        <div className="flex items-center gap-1">
+          <button onClick={() => setViewMode(viewMode === 'deck' ? 'list' : 'deck')} className={iconBtn}
+            title={viewMode === 'deck' ? 'Switch to grid view' : 'Switch to deck view'}>
+            {viewMode === 'deck' ? <LayoutList size={18} /> : <Layers size={18} />}
+          </button>
+          <button onClick={() => navigate('/saved')} title="Saved Cards" className={`${iconBtn} relative`}>
+            <BookmarkCheck size={18} />
+            {library.savedCards.length > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-emerald-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                {library.savedCards.length}
+              </span>
+            )}
+          </button>
+          <button onClick={() => navigate('/decks')} title="My Decks" className={`${iconBtn} relative`}>
+            <Layers size={18} />
+            {library.decks.length > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#4285f4] text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                {library.decks.length}
+              </span>
+            )}
+          </button>
+          <button onClick={() => navigate('/')} title="Search" className={iconBtn}>
+            <Search size={18} />
+          </button>
+          <button onClick={toggleDarkMode} className={iconBtn}>
+            {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+
+          {/* Auth controls */}
+          <div className={`w-px h-5 mx-1 ${darkMode ? 'bg-white/10' : 'bg-gray-200'}`} />
+          <UserMenu user={user} logout={logout} onSignIn={() => setShowAuthModal(true)} />
+        </div>
+      </header>
+
+      {/* ── Main ── */}
+      <main className="flex-1 flex flex-col items-center pb-32">
+        <AnimatePresence mode="wait">
+
+          {/* ── DECK VIEW ── */}
+          {viewMode === 'deck' && (
+            <motion.div key="deck"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="flex flex-col items-center gap-5 w-full pt-8"
+            >
+              {deck.length > 0 ? (
+                <>
+                  {/* Gesture hint row */}
+                  <div className={`flex gap-5 text-[11px] font-medium ${darkMode ? 'text-white/20' : 'text-slate-400'}`}>
+                    <span className="flex items-center gap-1 text-[#ea4335]"><X size={10} /> Skip</span>
+                    <span className="flex items-center gap-1 text-[#4285f4]"><Share2 size={10} /> Share</span>
+                    <span className="flex items-center gap-1 text-[#34a853]"><BookmarkPlus size={10} /> Save</span>
+                    <span className="flex items-center gap-1 text-[#fbbc05]"><ChevronDown size={10} /> Grid</span>
+                  </div>
+
+                  {/* Card stack */}
+                  <div className="relative" style={{ ...CARD_SIZE_STYLE, perspective: '1400px' }}>
+                    {/* Background cards */}
+                    {topThree.slice(1).map((result, i) => (
+                      <StackCard
+                        key={result.id}
+                        card={result}
+                        stackIndex={i + 1}
+                        darkMode={darkMode}
+                      />
+                    ))}
+
+                    {/* Top card */}
+                    <AnimatePresence>
+                      {topThree[0] && (
+                        <UniversalCard
+                          key={topThree[0].id}
+                          card={topThree[0]}
+                          onSwipe={handleSwipe}
+                          darkMode={darkMode}
+                          saved={!!library.savedCards.find((c) => c.id === topThree[0].id)}
+                          onSave={(r) => library.savedCards.find((c) => c.id === r.id) ? library.unsaveCard(r.id) : library.saveCard(r)}
+                          decks={library.decks}
+                          onAddToDeck={library.addCardToDeck}
+                          onCreateAndAdd={(card, name) => {
+                            const d = library.createDeck(name);
+                            library.addCardToDeck(d.id, card);
+                          }}
+                        />
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Progress dots */}
+                  <div className={`flex flex-col items-center gap-1 ${darkMode ? 'text-white/20' : 'text-slate-400'}`}>
+                    <div className="flex gap-1">
+                      {deck.slice(0, Math.min(deck.length, 10)).map((_, i) => (
+                        <div key={i} className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                          i === 0
+                            ? darkMode ? 'bg-white/50' : 'bg-slate-500'
+                            : darkMode ? 'bg-white/15' : 'bg-slate-200'
+                        }`} />
+                      ))}
+                    </div>
+                    <p className="text-[11px]">{deck.length} remaining · {allCards.length} total</p>
+                  </div>
+                </>
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`flex flex-col items-center gap-4 mt-24 text-center ${darkMode ? 'text-white/50' : 'text-slate-500'}`}
+                >
+                  <div className={`w-16 h-16 rounded-full flex items-center justify-center ${darkMode ? 'bg-white/8' : 'bg-slate-100'}`}>
+                    <Layers size={28} className="opacity-50" />
+                  </div>
+                  <div>
+                    <p className="text-xl font-semibold mb-1">All caught up</p>
+                    <p className="text-sm">You've gone through this batch.</p>
+                  </div>
+                  <div className="flex flex-col gap-3 w-full max-w-xs">
+                    {hasNextBatch && (
+                      <button onClick={loadNextBatch}
+                        className="px-6 py-2.5 bg-blue-500 text-white rounded-full text-sm font-medium hover:bg-blue-600 transition-colors shadow-md">
+                        Load Next Deck
+                      </button>
+                    )}
+                    <button onClick={restartDeck}
+                      className={`px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${
+                        darkMode ? 'bg-white/10 text-white/70 hover:bg-white/20' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}>
+                      Restart Deck
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </motion.div>
+          )}
+
+          {/* ── GRID VIEW ── */}
+          {viewMode === 'list' && (
+            <motion.div key="list"
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="w-full"
+            >
+              <div className="flex items-center justify-between mb-6 px-8 pt-6">
+                <h2 className={`font-semibold text-sm ${darkMode ? 'text-white/50' : 'text-slate-500'}`}>
+                  {allCards.length} results{isVisual ? ' · Visual' : state?.query ? ` · "${state.query}"` : ''}
+                </h2>
+                <button
+                  onClick={() => setViewMode('deck')}
+                  className="flex items-center gap-1.5 text-xs font-medium text-blue-500 hover:text-blue-700 transition-colors">
+                  <Layers size={13} /> Deck view
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 p-8 max-w-[1600px] mx-auto mt-8">
+                {allCards.map((r, i) => (
+                  <GridCard
+                    key={r.id}
+                    card={r}
+                    darkMode={darkMode}
+                    index={i}
+                    saved={!!library.savedCards.find((c) => c.id === r.id)}
+                    onSave={(card) => {
+                      const isSaved = !!library.savedCards.find((c) => c.id === card.id);
+                      isSaved ? library.unsaveCard(card.id) : library.saveCard(card);
+                      showToast(isSaved ? 'Removed from saved' : 'Saved to library');
+                    }}
+                    decks={library.decks}
+                    onAddToDeck={library.addCardToDeck}
+                    onCreateAndAdd={(card, name) => {
+                      const d = library.createDeck(name);
+                      library.addCardToDeck(d.id, card);
+                      showToast(`Added to "${name}"`);
+                    }}
+                  />
+                ))}
+              </div>
+
+              {hasNextBatch && (
+                <div className="mt-10 flex justify-center">
+                  <button onClick={loadNextBatch}
+                    className="px-8 py-3 bg-blue-500 text-white rounded-full text-sm font-medium hover:bg-blue-600 transition-colors shadow-md flex items-center gap-2">
+                    <Layers size={15} /> Load Next Deck
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+        </AnimatePresence>
+      </main>
+
+      {/* ── Undo FAB ── */}
+      <AnimatePresence>
+        {history.length > 0 && viewMode === 'deck' && (
+          <motion.button
+            key="undo-fab"
+            initial={{ opacity: 0, scale: 0.7, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.7, y: 12 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 26 }}
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.94 }}
+            onClick={handleUndo}
+            className={`fixed bottom-8 left-6 z-40 flex items-center gap-2 px-4 py-3 rounded-full shadow-xl font-medium text-sm transition-colors ${
+              darkMode
+                ? 'bg-zinc-700 text-white/80 hover:bg-zinc-600 ring-1 ring-white/10'
+                : 'bg-white text-slate-700 hover:bg-slate-50 ring-1 ring-slate-200 shadow-lg'
+            }`}
+            title="Undo last swipe"
+          >
+            <RotateCcw size={15} />
+            <span>Undo</span>
+            <span className={`ml-0.5 w-5 h-5 text-[10px] font-bold rounded-full flex items-center justify-center ${
+              darkMode ? 'bg-amber-500/80 text-black' : 'bg-amber-400 text-black'
+            }`}>
+              {history.length}
+            </span>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* ── Toast ── */}
+      <AnimatePresence>
+        {toast && <Toast key={toast.id} msg={toast.msg} />}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showAuthModal && (
+          <AuthModal darkMode={darkMode} onClose={() => setShowAuthModal(false)} />
+        )}
+      </AnimatePresence>
+
+      <Footer />
+    </div>
   );
 }

@@ -10,19 +10,19 @@ const AVATAR_COLORS = [
 ];
 
 function getAvatarColor(email: string): string {
-  if (!email) return AVATAR_COLORS[0];
   let hash = 0;
   for (let i = 0; i < email.length; i++) hash = email.charCodeAt(i) + ((hash << 5) - hash);
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
 export function Avatar({ email, size = 'sm' }: { email: string; size?: 'sm' | 'lg' }) {
-  const initial = email?.[0]?.toUpperCase() ?? '?';
+  const color = getAvatarColor(email);
+  const initial = email[0].toUpperCase();
   const cls = size === 'lg' ? 'w-16 h-16 text-2xl' : 'w-9 h-9 text-base';
   return (
     <div
       className={`${cls} rounded-full flex items-center justify-center font-medium text-white flex-shrink-0 select-none`}
-      style={{ backgroundColor: getAvatarColor(email ?? '') }}
+      style={{ backgroundColor: color }}
     >
       {initial}
     </div>
@@ -69,15 +69,14 @@ export default function UserMenu({
       : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
   }`;
 
-  const displayName = user.name || user.email?.split('@')[0] || 'User';
   const close = () => setOpen(false);
 
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className={`rounded-full transition-all focus:outline-none hover:ring-4 ${
-          darkMode ? 'ring-white/15' : 'ring-gray-200'
+        className={`rounded-full transition-all focus:outline-none ${
+          darkMode ? 'hover:ring-4 ring-white/15' : 'hover:ring-4 ring-gray-200'
         }`}
         aria-label="Account menu"
       >
@@ -99,7 +98,7 @@ export default function UserMenu({
               <Avatar email={user.email} size="lg" />
               <div className="text-center">
                 <p className={`font-bold text-base ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Hi, {displayName}!
+                  Hi, {user.name || user.email.split('@')[0]}!
                 </p>
                 <p className={`text-sm mt-0.5 ${darkMode ? 'text-white/45' : 'text-gray-500'}`}>
                   {user.email}
